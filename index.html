@@ -1,0 +1,1144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smart Crosswalk Prototype</title>
+<style>
+  :root{
+    --bg:#f4f2ee; --card:#ffffff; --ink:#1d2430; --muted:#5f6b7a; --line:#e2ded6;
+    --amber:#f5b301; --amber-soft:#fff3cc; --blue:#2f6fde; --green:#1f9d55; --red:#d64545;
+    --dark:#202632;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+  header{display:flex;flex-wrap:wrap;align-items:center;gap:16px;justify-content:space-between;padding:18px 24px;background:var(--dark);color:#fff}
+  header h1{margin:0;font-size:20px;letter-spacing:.2px}
+  header p{margin:2px 0 0;color:#b9c2cf;font-size:13px}
+  nav{display:flex;gap:6px}
+  nav a{color:#dfe5ee;text-decoration:none;padding:8px 14px;border-radius:8px;font-size:14px;font-weight:600;border:1px solid #3b4352}
+  nav a.on{background:var(--amber);color:#1d2430;border-color:var(--amber)}
+  main{padding:20px 24px 40px;max-width:1400px;margin:0 auto}
+  .view{display:none}.view.on{display:block}
+
+  /* simulation */
+  .sim{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:18px;align-items:start}
+  @media (max-width:980px){.sim{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .canvas-card{padding:10px}
+  .graph-card{margin-top:18px}
+  .graph-card canvas{cursor:crosshair}
+  .graph-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:10px}
+  @media (max-width:700px){.graph-stats{grid-template-columns:1fr 1fr}}
+  .graph-stats div{background:#f6f4ef;border-radius:8px;padding:8px 10px}
+  .graph-stats span{display:block;font-size:12px;color:var(--muted)}
+  .graph-stats b{font-size:17px;font-variant-numeric:tabular-nums}
+  canvas{width:100%;height:auto;display:block;border-radius:8px}
+  .below{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:18px}
+  @media (max-width:700px){.below{grid-template-columns:1fr}}
+  h3{margin:0 0 10px;font-size:13px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
+  .side{display:flex;flex-direction:column;gap:14px}
+  .signal{background:#11151c;color:#fff;border:none}
+  .sig-top{display:flex;align-items:center;gap:14px}
+  .sig-icon{width:64px;height:64px;border-radius:10px;background:#000;display:flex;align-items:center;justify-content:center}
+  .count{font-size:44px;font-weight:800;font-variant-numeric:tabular-nums;color:#ffb347;min-width:70px}
+  .msg{margin-top:10px;font-size:18px;font-weight:650;min-height:26px}
+  .msg-en{font-size:13px;color:#9aa6b5;min-height:18px}
+  .btnrow{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+  button{font:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--line);background:#faf9f6;padding:7px 10px;font-size:13px;color:var(--ink)}
+  button:hover{border-color:#bdb7ab}
+  button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .press{width:100%;padding:14px;font-size:16px;font-weight:700;background:var(--amber);border-color:#d99e00}
+  .press:disabled{opacity:.5;cursor:default}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:8px 0;font-size:14px}
+  input[type=range]{width:150px}
+  .math table{width:100%;border-collapse:collapse;font-size:14px}
+  .math td{padding:5px 0;border-bottom:1px solid #f0ece5;vertical-align:top}
+  .math td:last-child{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+  .formula{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;color:var(--muted);font-weight:500}
+  .decision{margin-top:10px;padding:10px;border-radius:8px;font-size:14px;font-weight:600;background:#f3f6fb}
+  .decision.ext{background:var(--amber-soft)}
+  .decision.ok{background:#e8f6ee}
+  .decision.bad{background:#fde8e8;color:#9b1c1c}
+  .tg{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid #f0ece5;font-size:14px}
+  .tg:last-of-type{border-bottom:none}
+  .tg small{display:block;color:var(--muted);font-size:11.5px}
+  .tg.dim span:first-child{opacity:.55}
+  .sw{flex:none;width:42px;height:24px;border-radius:12px;background:#cfcac0;border:none;padding:0;position:relative;transition:background .15s}
+  .sw::after{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .15s;box-shadow:0 1px 2px rgba(0,0,0,.25)}
+  .sw.on{background:var(--green)} .sw.on::after{left:21px}
+  button:disabled{opacity:.4;cursor:default}
+  .bar{height:12px;border-radius:6px;background:#ece8e0;overflow:hidden}
+  .bar>div{height:100%;background:var(--green);transition:width .3s}
+  .kv{font-size:14px}
+  .kv .row span:last-child{font-weight:600}
+  .note{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.4}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;font-size:12.5px;color:var(--muted);padding:8px 6px 2px}
+  .legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-2px}
+
+  /* build stages */
+  .intro{max-width:820px;color:var(--muted);font-size:15px;line-height:1.5;margin:0 0 18px}
+  .stage{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(260px,1fr);gap:18px;margin-bottom:22px;align-items:start}
+  @media (max-width:980px){.stage{grid-template-columns:1fr}}
+  .stage svg{width:100%;height:auto;display:block;background:#fff;border-radius:10px;border:1px solid var(--line)}
+  .notes h4{margin:12px 0 4px;font-size:13px;text-transform:uppercase;letter-spacing:.5px}
+  .notes h4:first-child{margin-top:0}
+  .notes ul{margin:0;padding-left:18px;font-size:14px;line-height:1.5}
+  .notes h4.m{color:var(--blue)} .notes h4.s{color:var(--green)} .notes h4.t{color:#b07d00}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Smart Crosswalk Prototype</h1>
+    <p>Adaptive timing, multilingual buttons, light-up path, solar powered</p>
+  </div>
+  <nav>
+    <a href="#simulation" id="tab-simulation">Simulation</a>
+    <a href="#build-stages" id="tab-build-stages">Build stages</a>
+  </nav>
+</header>
+
+<main>
+<!-- ================= SIMULATION ================= -->
+<section class="view" id="view-simulation">
+  <div class="sim">
+    <div>
+      <div class="card canvas-card">
+        <canvas id="c" width="900" height="520"></canvas>
+        <div class="legend">
+          <span><i style="background:#ffe27a"></i>LED path (follows the pedestrian)</span>
+          <span><i style="background:#f5b301"></i>Edge LEDs + driver beacons</span>
+          <span><i style="background:#2f6fde"></i>Pressed tile (footstep sensor)</span>
+        </div>
+      </div>
+      <div class="card graph-card">
+        <h3>Distance-time graph <span style="text-transform:none;letter-spacing:0;font-weight:500">(Grade 9: graph, interpolate, extrapolate)</span></h3>
+        <canvas id="g" width="900" height="300"></canvas>
+        <div class="graph-stats">
+          <div><span>Slope = walking speed</span><b id="gSlope">-</b></div>
+          <div><span>Predicted arrival (extrapolated)</span><b id="gArr">-</b></div>
+          <div><span>Signal ends</span><b id="gEnd">-</b></div>
+          <div><span>Hover to interpolate</span><b id="gHover">-</b></div>
+        </div>
+        <div class="note" id="gNote">Press the button to start a crossing. Each crossing draws a line; the last two stay faded so you can compare a fast and a slow walker.</div>
+      </div>
+      <div class="below">
+        <div class="card math" id="mathCard">
+          <h3>Live timing math</h3>
+          <table>
+            <tr><td>Road width</td><td>15.0 m</td></tr>
+            <tr><td>Design walking speed<div class="formula" id="fDesign"></div></td><td id="vDesign">1.2 m/s</td></tr>
+            <tr><td>Walk time given<div class="formula" id="fGiven">15.0 ÷ 1.2 + 2 s to step off</div></td><td id="vGiven">14.5 s</td></tr>
+            <tr><td>Pedestrian position</td><td id="vPos">-</td></tr>
+            <tr><td>Distance left</td><td id="vLeft">-</td></tr>
+            <tr><td>Walking speed<div class="formula">from time between footsteps</div></td><td id="vSpeed">-</td></tr>
+            <tr><td>Time needed<div class="formula" id="fNeed">distance left ÷ speed</div></td><td id="vNeed">-</td></tr>
+            <tr><td>Time left on signal</td><td id="vTimeLeft">-</td></tr>
+            <tr><td>Extra time added this crossing</td><td id="vExt">0.0 s</td></tr>
+          </table>
+          <div class="decision" id="decision">Press the button to start a crossing.</div>
+        </div>
+        <div class="card kv">
+          <h3>Sensors and power</h3>
+          <div class="row"><span>Battery</span><span id="batTxt">78%</span></div>
+          <div class="bar"><div id="batBar" style="width:78%"></div></div>
+          <div class="row"><span>Solar input</span><span id="solar">240 W</span></div>
+          <div class="row"><span>Light sensor</span><span id="lightS">Daytime</span></div>
+          <div class="row"><span>Weather sensor</span><span id="weatherS">Clear</span></div>
+          <div class="row"><span>LED brightness</span><span id="ledB">Off</span></div>
+          <div class="row"><span>Curb pressure mat</span><span id="matS">Empty</span></div>
+          <div class="row"><span>Footstep tiles</span><span id="trackS">Nobody on crosswalk</span></div>
+          <div class="row"><span>Crossings completed</span><span id="statC">0</span></div>
+          <div class="row"><span>Times extra time was added</span><span id="statE">0</span></div>
+          <div class="row"><span>Signal ran out mid-crossing</span><span id="statU">0</span></div>
+        </div>
+      </div>
+    </div>
+
+    <aside class="side">
+      <div class="card signal">
+        <div class="sig-top">
+          <div class="sig-icon" id="sigIcon"></div>
+          <div class="count" id="count">--</div>
+        </div>
+        <div class="msg" id="msg"></div>
+        <div class="msg-en" id="msgEn"></div>
+      </div>
+
+      <div class="card">
+        <h3>1. Pick a language</h3>
+        <div class="btnrow" id="langs"></div>
+        <h3>2. Pick crossing time</h3>
+        <div class="btnrow">
+          <button data-mode="standard" class="on">Standard (1.2 m/s)</button>
+          <button data-mode="extra">Extra time (0.8 m/s)</button>
+        </div>
+        <button class="press" id="press">Press to cross</button>
+      </div>
+
+      <div class="card">
+        <h3>Test conditions</h3>
+        <div class="row"><span>Pedestrian's real speed</span><span><input type="range" id="speed" min="0.4" max="1.6" step="0.1" value="1.2"> <b id="speedTxt">1.2</b> m/s</span></div>
+        <div class="note" style="margin:-2px 0 8px">Try pressing Standard, then dragging this slow. The system notices and adds time.</div>
+        <button id="stopBtn" style="width:100%;margin-bottom:10px">Pedestrian stops mid-crossing (3 s)</button>
+        <div class="btnrow">
+          <button id="nightBtn">Night</button>
+          <button id="snowBtn">Snow</button>
+          <button id="speakBtn">Speak instructions</button>
+        </div>
+        <div class="note">Translations are prototype placeholders. A real system would have each one checked by native speakers.</div>
+      </div>
+
+      <div class="card">
+        <h3>System parts (turn on or off)</h3>
+        <div id="toggles"></div>
+        <div class="btnrow" style="margin:10px 0 0">
+          <button id="allOn">All on</button><button id="allOff">All off (normal crosswalk)</button>
+        </div>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<!-- ================= BUILD STAGES ================= -->
+<section class="view" id="view-build-stages">
+  <p class="intro">The stages you would go through to build the real smart crosswalk. Each one lists the materials, plus the math and science it uses.</p>
+
+  <!-- Stage 1 -->
+  <div class="stage">
+    <svg id="stage1" viewBox="0 0 800 470" xmlns="http://www.w3.org/2000/svg" font-family="system-ui,Segoe UI,Roboto,sans-serif">
+      <defs>
+        <pattern id="grid" width="18" height="18" patternUnits="userSpaceOnUse"><path d="M18 0H0V18" fill="none" stroke="#000" stroke-opacity=".07"/></pattern>
+        <marker id="ar" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#1d2430"/></marker>
+      </defs>
+      <text x="24" y="34" font-size="22" font-weight="700" fill="#1d2430">Stage 1: Measure and plan the site</text>
+      <text x="24" y="56" font-size="13" fill="#5f6b7a">Top-down scale drawing. Each grid square = 1 m.</text>
+      <rect x="20" y="70" width="760" height="50" fill="#d9d4ca"/>
+      <rect x="20" y="390" width="760" height="55" fill="#d9d4ca"/>
+      <rect x="20" y="120" width="760" height="270" fill="#4a505a"/>
+      <rect x="20" y="70" width="760" height="375" fill="url(#grid)"/>
+      <line x1="20" x2="364" y1="187.5" y2="187.5" stroke="#fff" stroke-width="2" stroke-dasharray="14 12"/>
+      <line x1="436" x2="780" y1="187.5" y2="187.5" stroke="#fff" stroke-width="2" stroke-dasharray="14 12"/>
+      <line x1="20" x2="364" y1="322.5" y2="322.5" stroke="#fff" stroke-width="2" stroke-dasharray="14 12"/>
+      <line x1="436" x2="780" y1="322.5" y2="322.5" stroke="#fff" stroke-width="2" stroke-dasharray="14 12"/>
+      <line x1="20" x2="364" y1="252" y2="252" stroke="#f5c400" stroke-width="2"/><line x1="20" x2="364" y1="258" y2="258" stroke="#f5c400" stroke-width="2"/>
+      <line x1="436" x2="780" y1="252" y2="252" stroke="#f5c400" stroke-width="2"/><line x1="436" x2="780" y1="258" y2="258" stroke="#f5c400" stroke-width="2"/>
+      <g fill="#fff">
+        <rect x="368" y="363" width="64" height="10.8"/><rect x="368" y="341.4" width="64" height="10.8"/><rect x="368" y="319.8" width="64" height="10.8"/><rect x="368" y="298.2" width="64" height="10.8"/><rect x="368" y="276.6" width="64" height="10.8"/><rect x="368" y="255" width="64" height="10.8"/><rect x="368" y="233.4" width="64" height="10.8"/><rect x="368" y="211.8" width="64" height="10.8"/><rect x="368" y="190.2" width="64" height="10.8"/><rect x="368" y="168.6" width="64" height="10.8"/><rect x="368" y="147" width="64" height="10.8"/><rect x="368" y="125.4" width="64" height="10.8"/>
+      </g>
+      <line x1="364" x2="364" y1="120" y2="390" stroke="#f5b301" stroke-width="4" stroke-dasharray="3 6"/>
+      <line x1="436" x2="436" y1="120" y2="390" stroke="#f5b301" stroke-width="4" stroke-dasharray="3 6"/>
+      <rect x="324" y="255" width="6" height="135" fill="#fff"/>
+      <rect x="470" y="120" width="6" height="135" fill="#fff"/>
+      <text x="120" y="295" font-size="26" fill="#fff" opacity=".7">→</text><text x="120" y="365" font-size="26" fill="#fff" opacity=".7">→</text>
+      <text x="660" y="160" font-size="26" fill="#fff" opacity=".7">←</text><text x="660" y="228" font-size="26" fill="#fff" opacity=".7">←</text>
+      <!-- pressure mats -->
+      <rect x="366" y="394" width="68" height="40" fill="#2f6fde" fill-opacity=".15" stroke="#2f6fde" stroke-dasharray="5 4"/>
+      <rect x="366" y="75" width="68" height="40" fill="#2f6fde" fill-opacity=".15" stroke="#2f6fde" stroke-dasharray="5 4"/>
+      <!-- poles -->
+      <circle cx="340" cy="420" r="9" fill="#1d2430"/><circle cx="460" cy="92" r="9" fill="#1d2430"/>
+      <!-- dimensions -->
+      <line x1="560" x2="560" y1="124" y2="386" stroke="#fff" stroke-width="2" marker-start="url(#ar)" marker-end="url(#ar)"/>
+      <rect x="572" y="268" width="182" height="46" rx="6" fill="#fff"/>
+      <text x="582" y="288" font-size="16" font-weight="700" fill="#1d2430">15 m road width</text>
+      <text x="582" y="306" font-size="13" fill="#5f6b7a">4 lanes × 3.75 m each</text>
+      <line x1="366" x2="434" y1="64" y2="64" stroke="#1d2430" stroke-width="1.5" marker-start="url(#ar)" marker-end="url(#ar)"/>
+      <text x="400" y="60" text-anchor="middle" font-size="13" font-weight="700" fill="#1d2430">4 m</text>
+      <!-- labels -->
+      <rect x="40" y="198" width="270" height="44" rx="6" fill="#fff"/>
+      <text x="50" y="216" font-size="13" font-weight="700" fill="#1d2430">Stop lines 2 m back</text>
+      <text x="50" y="233" font-size="12" fill="#5f6b7a">gives drivers room before the crosswalk</text>
+      <line x1="310" y1="225" x2="326" y2="290" stroke="#fff" stroke-width="1.5"/>
+      <text x="40" y="415" font-size="13" font-weight="700" fill="#1d2430">Signal pole</text>
+      <text x="40" y="432" font-size="12" fill="#1d2430">solar panel + sensors + buttons</text>
+      <line x1="230" y1="420" x2="329" y2="420" stroke="#1d2430"/>
+      <text x="446" y="412" font-size="13" font-weight="700" fill="#2f6fde">Pressure mat</text>
+      <text x="446" y="429" font-size="12" fill="#2f6fde">(waiting zone)</text>
+      <text x="476" y="96" font-size="13" font-weight="700" fill="#1d2430">Signal pole</text>
+      <text x="20" y="462" font-size="12" fill="#5f6b7a">Amber dotted lines = edge LED strips. The whole crosswalk surface is pressure-sensing LED tiles (0.6 m each).</text>
+    </svg>
+    <div class="card notes">
+      <h4 class="t">What happens</h4>
+      <ul><li>Measure the road and crosswalk, count lanes, and note where poles and sensors will go.</li><li>Check collision data to see when the crosswalk is busiest (in Alberta, 26.9% of serious pedestrian collisions happen 3 to 7 pm).</li></ul>
+      <h4>Materials</h4>
+      <ul><li>Measuring wheel or tape, graph paper or CAD software, traffic counter</li></ul>
+      <h4 class="m">Math</h4>
+      <ul><li>Measurement and scale drawings (1 square = 1 m)</li><li>Area: 15 m × 4 m = 60 m² of crosswalk</li><li>Reading percentages from collision data</li></ul>
+      <h4 class="s">Science</h4>
+      <ul><li>Collecting and analyzing data before designing</li></ul>
+    </div>
+  </div>
+
+  <!-- Stage 2 -->
+  <div class="stage">
+    <svg id="stage2" viewBox="0 0 800 470" xmlns="http://www.w3.org/2000/svg" font-family="system-ui,Segoe UI,Roboto,sans-serif">
+      <defs><marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#1d2430"/></marker></defs>
+      <text x="24" y="34" font-size="22" font-weight="700" fill="#1d2430">Stage 2: Design the power system</text>
+      <text x="24" y="56" font-size="13" fill="#5f6b7a">How sunlight ends up as light and sound at the crosswalk</text>
+      <g stroke="#f5b301" stroke-width="3"><line x1="70" y1="100" x2="70" y2="88"/><line x1="70" y1="180" x2="70" y2="192"/><line x1="30" y1="140" x2="18" y2="140"/><line x1="110" y1="140" x2="122" y2="140"/><line x1="42" y1="112" x2="33" y2="103"/><line x1="98" y1="168" x2="107" y2="177"/><line x1="98" y1="112" x2="107" y2="103"/><line x1="42" y1="168" x2="33" y2="177"/></g>
+      <circle cx="70" cy="140" r="30" fill="#ffd34d" stroke="#f5b301" stroke-width="3"/>
+      <text x="70" y="145" text-anchor="middle" font-size="13" font-weight="700" fill="#7a5600">Sun</text>
+      <g font-size="13" fill="#1d2430">
+        <rect x="140" y="105" width="170" height="70" rx="10" fill="#e6efff" stroke="#2f6fde"/>
+        <text x="225" y="133" text-anchor="middle" font-weight="700">Solar panel</text><text x="225" y="152" text-anchor="middle">about 300 W</text>
+        <rect x="345" y="105" width="170" height="70" rx="10" fill="#f3f1ec" stroke="#8a8578"/>
+        <text x="430" y="133" text-anchor="middle" font-weight="700">Charge controller</text><text x="430" y="152" text-anchor="middle">stops overcharging</text>
+        <rect x="550" y="105" width="220" height="70" rx="10" fill="#e8f6ee" stroke="#1f9d55"/>
+        <text x="660" y="133" text-anchor="middle" font-weight="700">12 V lithium battery</text><text x="660" y="152" text-anchor="middle">stores energy for the night</text>
+        <rect x="290" y="225" width="220" height="64" rx="10" fill="#1d2430"/>
+        <text x="400" y="252" text-anchor="middle" font-weight="700" fill="#fff">Microcontroller</text><text x="400" y="271" text-anchor="middle" fill="#cfd6e0">the brain: runs the timing math</text>
+      </g>
+      <line x1="102" y1="140" x2="138" y2="140" stroke="#1d2430" stroke-width="2" marker-end="url(#ar2)"/>
+      <line x1="310" y1="140" x2="343" y2="140" stroke="#1d2430" stroke-width="2" marker-end="url(#ar2)"/>
+      <line x1="515" y1="140" x2="548" y2="140" stroke="#1d2430" stroke-width="2" marker-end="url(#ar2)"/>
+      <path d="M660 175 V257 H512" fill="none" stroke="#1d2430" stroke-width="2" marker-end="url(#ar2)"/>
+      <text x="225" y="196" text-anchor="middle" font-size="12" fill="#2f6fde">light → electrical energy</text>
+      <text x="652" y="200" text-anchor="end" font-size="12" fill="#1f9d55">electrical → chemical energy</text>
+      <rect x="24" y="222" width="240" height="70" rx="8" fill="#fff" stroke="#e2ded6"/>
+      <text x="36" y="243" font-size="12" font-weight="700" fill="#1f9d55">SCIENCE</text>
+      <text x="36" y="261" font-size="12" fill="#1d2430">Energy changes form: light → electrical</text>
+      <text x="36" y="278" font-size="12" fill="#1d2430">→ chemical → light and sound</text>
+      <g font-size="12.5" fill="#1d2430" text-anchor="middle">
+        <rect x="26" y="335" width="140" height="56" rx="8" fill="#fff8db" stroke="#f5b301"/><text x="96" y="358" font-weight="700">LED tiles</text><text x="96" y="376">light up the path</text>
+        <rect x="178" y="335" width="140" height="56" rx="8" fill="#e6efff" stroke="#2f6fde"/><text x="248" y="358" font-weight="700">Sensors</text><text x="248" y="376">footstep tiles, weather</text>
+        <rect x="330" y="335" width="140" height="56" rx="8" fill="#f3f1ec" stroke="#8a8578"/><text x="400" y="358" font-weight="700">Button panel</text><text x="400" y="376">languages + time</text>
+        <rect x="482" y="335" width="140" height="56" rx="8" fill="#f3f1ec" stroke="#8a8578"/><text x="552" y="358" font-weight="700">Speaker</text><text x="552" y="376">spoken instructions</text>
+        <rect x="634" y="335" width="140" height="56" rx="8" fill="#fff8db" stroke="#f5b301"/><text x="704" y="358" font-weight="700">Driver beacons</text><text x="704" y="376">flashing warnings</text>
+      </g>
+      <g stroke="#1d2430" stroke-width="1.5" fill="none">
+        <path d="M400 289 V312 H96 V333" marker-end="url(#ar2)"/><path d="M248 312 V333" marker-end="url(#ar2)"/><path d="M400 312 V333" marker-end="url(#ar2)"/><path d="M400 312 H552 V333" marker-end="url(#ar2)"/><path d="M552 312 H704 V333" marker-end="url(#ar2)"/>
+      </g>
+      <rect x="536" y="222" width="240" height="70" rx="8" fill="#fff" stroke="#e2ded6"/>
+      <text x="548" y="243" font-size="12" font-weight="700" fill="#2f6fde">MATH</text>
+      <text x="548" y="261" font-size="12" fill="#1d2430">energy = power × time</text>
+      <text x="548" y="278" font-size="12" fill="#1d2430">(watts × hours = watt-hours, Wh)</text>
+      <rect x="24" y="405" width="752" height="54" rx="8" fill="#f4f2ee"/>
+      <text x="36" y="426" font-size="12.5" fill="#1d2430"><tspan font-weight="700">Energy check (estimates): </tspan>LEDs + electronics ≈ 50 W × 14 h of winter darkness ≈ 700 Wh per night.</text>
+      <text x="36" y="446" font-size="12.5" fill="#1d2430">300 W panel × about 3 h of strong winter sun ≈ 900 Wh per day. 900 &gt; 700, so the battery stays charged.</text>
+    </svg>
+    <div class="card notes">
+      <h4 class="t">What happens</h4>
+      <ul><li>Work out how much energy the crosswalk uses, then size the solar panel and battery so it runs all night, even in winter.</li></ul>
+      <h4>Materials</h4>
+      <ul><li>Solar panel (about 300 W), charge controller, 12 V lithium iron phosphate battery, copper wiring, weatherproof electrical box</li></ul>
+      <h4 class="m">Math</h4>
+      <ul><li>Energy = power × time (W × h = Wh)</li><li>Comparing energy in vs energy out</li></ul>
+      <h4 class="s">Science</h4>
+      <ul><li>Energy transformations (light → electrical → chemical)</li><li>Electric circuits</li><li>Photovoltaic effect in solar cells</li></ul>
+    </div>
+  </div>
+
+  <!-- Stage 3 -->
+  <div class="stage">
+    <svg id="stage3" viewBox="0 0 800 470" xmlns="http://www.w3.org/2000/svg" font-family="system-ui,Segoe UI,Roboto,sans-serif">
+      <defs>
+        <pattern id="gravel" width="16" height="16" patternUnits="userSpaceOnUse"><rect width="16" height="16" fill="#b8b0a2"/><circle cx="4" cy="5" r="2.5" fill="#968d7e"/><circle cx="12" cy="11" r="3" fill="#a39a8a"/><circle cx="13" cy="3" r="1.5" fill="#8a8172"/></pattern>
+        <linearGradient id="glow" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#ffe27a" stop-opacity=".9"/><stop offset="1" stop-color="#ffe27a" stop-opacity="0"/></linearGradient>
+      </defs>
+      <text x="24" y="34" font-size="22" font-weight="700" fill="#1d2430">Stage 3: Build the LED crosswalk tiles</text>
+      <text x="24" y="56" font-size="13" fill="#5f6b7a">Cross-section (side cut) through one tile: it lights up AND senses footsteps</text>
+      <!-- light rays -->
+      <path d="M310 200 L290 100 L510 100 L490 200 Z" fill="url(#glow)"/>
+      <!-- layers -->
+      <rect x="210" y="200" width="380" height="0" />
+      <rect x="210" y="200" width="90" height="55" fill="#3b4049"/>
+      <rect x="500" y="200" width="90" height="55" fill="#3b4049"/>
+      <rect x="210" y="255" width="380" height="80" fill="url(#gravel)"/>
+      <rect x="210" y="335" width="380" height="70" fill="#8a6a4a"/>
+      <rect x="300" y="250" width="200" height="45" fill="#a9a9a4"/>
+      <path d="M306 214 V248 H494 V214" fill="none" stroke="#7d8590" stroke-width="6"/>
+      <rect x="312" y="228" width="176" height="12" rx="3" fill="#ffd84d"/>
+      <rect x="316" y="250" width="16" height="8" fill="#d64545"/><rect x="468" y="250" width="16" height="8" fill="#d64545"/>
+      <g fill="#fff6c2"><circle cx="330" cy="234" r="3"/><circle cx="360" cy="234" r="3"/><circle cx="390" cy="234" r="3"/><circle cx="420" cy="234" r="3"/><circle cx="450" cy="234" r="3"/><circle cx="478" cy="234" r="3"/></g>
+      <rect x="300" y="200" width="200" height="16" fill="#cfe8ff" fill-opacity=".85" stroke="#7fb3e6"/>
+      <g fill="#6b7280"><circle cx="312" cy="200" r="1.6"/><circle cx="330" cy="199" r="1.6"/><circle cx="352" cy="200" r="1.6"/><circle cx="371" cy="199" r="1.6"/><circle cx="393" cy="200" r="1.6"/><circle cx="414" cy="199" r="1.6"/><circle cx="436" cy="200" r="1.6"/><circle cx="455" cy="199" r="1.6"/><circle cx="476" cy="200" r="1.6"/><circle cx="492" cy="199" r="1.6"/></g>
+      <circle cx="400" cy="318" r="12" fill="#5f6b7a" stroke="#1d2430"/><circle cx="396" cy="316" r="2.5" fill="#d64545"/><circle cx="404" cy="320" r="2.5" fill="#1d2430"/>
+      <path d="M388 318 H210" stroke="#5f6b7a" stroke-width="6"/>
+      <!-- labels left -->
+      <g font-size="13" fill="#1d2430">
+        <text x="20" y="166" font-weight="700">Clear cover</text><text x="20" y="182" font-size="12" fill="#5f6b7a">tempered glass or polycarbonate</text>
+        <line x1="104" y1="162" x2="302" y2="206" stroke="#1d2430"/>
+        <text x="20" y="240" font-weight="700">Waterproof LED strip</text>
+        <line x1="160" y1="236" x2="312" y2="234" stroke="#1d2430"/>
+        <text x="20" y="272" font-weight="700">Aluminum channel</text>
+        <line x1="136" y1="268" x2="306" y2="240" stroke="#1d2430"/>
+        <text x="20" y="304" font-weight="700" fill="#d64545">Pressure sensors</text><text x="20" y="320" font-size="12" fill="#5f6b7a">feel each footstep on the tile</text>
+        <line x1="128" y1="300" x2="316" y2="256" stroke="#1d2430"/>
+        <text x="20" y="352" font-weight="700">Conduit with wires</text><text x="20" y="368" font-size="12" fill="#5f6b7a">runs to the signal pole</text>
+        <line x1="150" y1="348" x2="214" y2="320" stroke="#1d2430"/>
+      </g>
+      <!-- labels right -->
+      <g font-size="13" fill="#1d2430">
+        <text x="610" y="150" font-weight="700">Anti-slip grit</text><text x="610" y="166" font-size="12" fill="#5f6b7a">friction, so it isn't icy</text>
+        <line x1="608" y1="160" x2="480" y2="199" stroke="#1d2430"/>
+        <text x="610" y="226" font-weight="700">Asphalt road</text>
+        <line x1="608" y1="222" x2="560" y2="222" stroke="#1d2430"/>
+        <text x="610" y="276" font-weight="700">Concrete bed</text>
+        <line x1="608" y1="272" x2="490" y2="272" stroke="#1d2430"/>
+        <text x="610" y="304" font-weight="700">Gravel base</text><text x="610" y="320" font-size="12" fill="#5f6b7a">lets water drain away</text>
+        <line x1="608" y1="300" x2="560" y2="300" stroke="#1d2430"/>
+        <text x="610" y="374" font-weight="700">Soil</text>
+        <line x1="608" y1="370" x2="560" y2="370" stroke="#1d2430"/>
+      </g>
+      <text x="400" y="92" text-anchor="middle" font-size="13" font-weight="700" fill="#b07d00">Light shines up for drivers and walkers</text>
+      <rect x="24" y="414" width="752" height="48" rx="8" fill="#f4f2ee"/>
+      <text x="36" y="434" font-size="12.5" fill="#1d2430">The tile sits level with the road, so cars and snowplows drive right over it.</text>
+      <text x="36" y="452" font-size="12.5" fill="#1d2430">About 73 m of LED strip in total: 12 bars × 3.6 m + 2 edges × 15 m.</text>
+    </svg>
+    <div class="card notes">
+      <h4 class="t">What happens</h4>
+      <ul><li>Cut channels into the road, lay conduit back to the pole, set LED strips in aluminum channels on top of pressure sensors, and seal them under a clear, textured cover.</li></ul>
+      <h4>Materials</h4>
+      <ul><li>Tempered glass or polycarbonate covers, aluminum channels, waterproof (IP68) LED strips, pressure (load) sensors, concrete, gravel, anti-slip grit, electrical conduit</li></ul>
+      <h4 class="m">Math</h4>
+      <ul><li>Total LED length: 12 × 3.6 m + 2 × 15 m ≈ 73 m</li><li>Measuring depth so tiles sit flush with the road</li></ul>
+      <h4 class="s">Science</h4>
+      <ul><li>Light: LEDs turn electrical energy into light</li><li>Friction on a wet or icy surface</li><li>Material strength and freeze/thaw (water expands when it freezes)</li></ul>
+    </div>
+  </div>
+
+  <!-- Stage 4 -->
+  <div class="stage">
+    <svg id="stage4" viewBox="0 0 800 470" xmlns="http://www.w3.org/2000/svg" font-family="system-ui,Segoe UI,Roboto,sans-serif">
+      <defs>
+        <marker id="ar4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#d64545"/></marker>
+        <radialGradient id="tileGlow" cx=".5" cy="1" r=".9"><stop offset="0" stop-color="#ffe27a" stop-opacity=".9"/><stop offset="1" stop-color="#ffe27a" stop-opacity="0"/></radialGradient>
+      </defs>
+      <text x="24" y="34" font-size="22" font-weight="700" fill="#1d2430">Stage 4: Install the footstep sensors</text>
+      <text x="24" y="56" font-size="13" fill="#5f6b7a">Side view: the crosswalk tiles feel each step, so no cameras are needed</text>
+      <!-- ground -->
+      <rect x="20" y="300" width="150" height="12" fill="#c9c3b6"/>
+      <rect x="650" y="300" width="130" height="12" fill="#c9c3b6"/>
+      <rect x="20" y="312" width="760" height="70" fill="#8a6a4a" fill-opacity=".45"/>
+      <rect x="170" y="316" width="480" height="20" fill="#a9a9a4"/>
+      <!-- glow -->
+      <ellipse cx="372" cy="304" rx="70" ry="60" fill="url(#tileGlow)"/>
+      <!-- tiles: 25 x 19.2px -->
+      <g stroke="#1d2430" stroke-width=".8">
+        <rect x="170" y="304" width="19.2" height="12" fill="#3b4049"/><rect x="189.2" y="304" width="19.2" height="12" fill="#3b4049"/><rect x="208.4" y="304" width="19.2" height="12" fill="#3b4049"/><rect x="227.6" y="304" width="19.2" height="12" fill="#3b4049"/><rect x="246.8" y="304" width="19.2" height="12" fill="#3b4049"/><rect x="266" y="304" width="19.2" height="12" fill="#3b4049"/><rect x="285.2" y="304" width="19.2" height="12" fill="#3b4049"/><rect x="304.4" y="304" width="19.2" height="12" fill="#3b4049"/><rect x="323.6" y="304" width="19.2" height="12" fill="#8a7a3a"/><rect x="342.8" y="304" width="19.2" height="12" fill="#c9a93a"/><rect x="362" y="304" width="19.2" height="12" fill="#ffe27a"/><rect x="381.2" y="304" width="19.2" height="12" fill="#e9c94a"/><rect x="400.4" y="304" width="19.2" height="12" fill="#c9a93a"/><rect x="419.6" y="304" width="19.2" height="12" fill="#8a7a3a"/><rect x="438.8" y="304" width="19.2" height="12" fill="#3b4049"/><rect x="458" y="304" width="19.2" height="12" fill="#3b4049"/><rect x="477.2" y="304" width="19.2" height="12" fill="#3b4049"/><rect x="496.4" y="304" width="19.2" height="12" fill="#3b4049"/><rect x="515.6" y="304" width="19.2" height="12" fill="#3b4049"/><rect x="534.8" y="304" width="19.2" height="12" fill="#3b4049"/><rect x="554" y="304" width="19.2" height="12" fill="#3b4049"/><rect x="573.2" y="304" width="19.2" height="12" fill="#3b4049"/><rect x="592.4" y="304" width="19.2" height="12" fill="#3b4049"/><rect x="611.6" y="304" width="19.2" height="12" fill="#3b4049"/><rect x="630.8" y="304" width="19.2" height="12" fill="#3b4049"/>
+      </g>
+      <rect x="362" y="304" width="19.2" height="12" fill="none" stroke="#2f6fde" stroke-width="2.5"/>
+      <!-- wires -->
+      <path d="M640 328 H150 V300" fill="none" stroke="#1d2430" stroke-width="2" stroke-dasharray="6 4"/>
+      <!-- pressure mat -->
+      <rect x="40" y="295" width="90" height="5" fill="#2f6fde"/>
+      <!-- pole -->
+      <rect x="146" y="100" width="8" height="200" fill="#1d2430"/>
+      <g transform="rotate(-25 150 94)"><rect x="110" y="86" width="80" height="12" fill="#2f6fde" stroke="#1d2430"/></g>
+      <circle cx="162" cy="132" r="7" fill="#9aa6b5" stroke="#1d2430"/>
+      <circle cx="162" cy="176" r="8" fill="#f5b301" stroke="#1d2430"/>
+      <rect x="154" y="220" width="20" height="30" rx="3" fill="#5f6b7a" stroke="#1d2430"/>
+      <!-- people -->
+      <g stroke="#1d2430" stroke-width="3" fill="none" stroke-linecap="round">
+        <circle cx="85" cy="236" r="8" fill="#1d2430"/><path d="M85 244 V270 M85 270 L77 294 M85 270 L93 294 M85 252 L74 266 M85 252 L96 266"/>
+        <circle cx="372" cy="240" r="8" fill="#1d2430"/><path d="M372 248 V276 M372 276 L364 302 M372 276 L380 302 M372 256 L360 268 M372 256 L384 266"/>
+      </g>
+      <g stroke="#d64545" stroke-width="2.5"><line x1="346" y1="262" x2="346" y2="296" marker-end="url(#ar4)"/><line x1="398" y1="262" x2="398" y2="296" marker-end="url(#ar4)"/></g>
+      <!-- labels -->
+      <g font-size="13" fill="#1d2430" paint-order="stroke" stroke="#fff" stroke-width="5" stroke-linejoin="round">
+        <text x="200" y="88" font-weight="700">Solar panel</text>
+        <text x="200" y="128" font-weight="700">Light + weather sensor</text><text x="200" y="144" font-size="12" fill="#5f6b7a">knows if it's night, raining or snowing</text>
+        <text x="200" y="174" font-weight="700">Flashing beacon</text><text x="200" y="190" font-size="12" fill="#5f6b7a">warns drivers</text>
+        <text x="200" y="238" font-weight="700">Button panel</text>
+        <text x="412" y="200" font-weight="700" fill="#d64545">Footstep pushes down</text><text x="412" y="216" font-size="12" fill="#5f6b7a">the tile senses it and lights up,</text><text x="412" y="232" font-size="12" fill="#5f6b7a">and the tiles ahead glow dimmer</text>
+        <text x="470" y="270" font-weight="700" fill="#2f6fde">25 pressure-sensing LED tiles</text><text x="470" y="286" font-size="12" fill="#5f6b7a">each 0.6 m wide, 15 m in total</text>
+        <text x="26" y="350" font-weight="700" fill="#2f6fde">Pressure mat</text><text x="26" y="366" font-size="12" fill="#1d2430">someone is waiting</text>
+        <text x="240" y="356" font-weight="700">Wires carry each tile's signal to the microcontroller in the pole</text>
+      </g>
+      <g stroke="#1d2430" stroke-width="1"><line x1="196" y1="128" x2="170" y2="132"/><line x1="196" y1="172" x2="171" y2="176"/><line x1="196" y1="234" x2="175" y2="234"/><line x1="560" y1="290" x2="560" y2="303"/></g>
+      <rect x="24" y="384" width="752" height="80" rx="8" fill="#f4f2ee"/>
+      <text x="36" y="403" font-size="12" font-weight="700" fill="#1f9d55">SCIENCE + MATH</text>
+      <text x="36" y="420" font-size="12.5" fill="#1d2430">Pressure = force ÷ area. A 70 kg person pushes down with about 690 N (weight = mass × 9.8).</text>
+      <text x="36" y="437" font-size="12.5" fill="#1d2430">The sensor turns that push into an electrical signal. Position = which tile is pressed:</text>
+      <text x="36" y="454" font-size="12.5" fill="#1d2430">the 11th tile is about 6.3 m across (10 × 0.6 m + 0.3 m). Speed = distance ÷ time between steps.</text>
+    </svg>
+    <div class="card notes">
+      <h4 class="t">What happens</h4>
+      <ul><li>Wire every crosswalk tile's pressure sensor back to the pole, add pressure mats at each curb, and mount light and weather sensors on top of the pole.</li><li>The tiles tell the system where the walker is, so no camera or radar is needed.</li></ul>
+      <h4>Materials</h4>
+      <ul><li>25 pressure-sensing LED tiles, pressure mats, signal wire in conduit, light sensor, temperature and precipitation sensor, amber LED beacons, steel pole (about 3 m)</li></ul>
+      <h4 class="m">Math</h4>
+      <ul><li>Position from tile number: tile × 0.6 m</li><li>Speed = distance ÷ time between footsteps</li><li>15 m ÷ 0.6 m = 25 tiles</li></ul>
+      <h4 class="s">Science</h4>
+      <ul><li>Pressure = force ÷ area</li><li>Weight = mass × gravity (9.8 m/s²)</li><li>Sensors turn a push (force) into an electrical signal</li></ul>
+    </div>
+  </div>
+
+  <!-- Stage 5 -->
+  <div class="stage">
+    <svg id="stage5" viewBox="0 0 800 470" xmlns="http://www.w3.org/2000/svg" font-family="system-ui,Segoe UI,Roboto,sans-serif">
+      <text x="24" y="34" font-size="22" font-weight="700" fill="#1d2430">Stage 5: Build the button panel</text>
+      <text x="24" y="56" font-size="13" fill="#5f6b7a">Front view of the panel on the pole</text>
+      <rect x="275" y="70" width="250" height="385" rx="18" fill="#3a404b" stroke="#1d2430" stroke-width="2"/>
+      <rect x="295" y="90" width="210" height="78" rx="6" fill="#0d1117"/>
+      <text x="310" y="122" font-size="20" font-weight="800" fill="#fff">WALK</text>
+      <text x="490" y="122" text-anchor="end" font-size="24" font-weight="800" fill="#ffb347">12</text>
+      <text x="310" y="150" font-size="12" fill="#cfd6e0">Camine. Cruce ahora.</text>
+      <g font-size="11" font-weight="700" text-anchor="middle" fill="#1d2430">
+        <circle cx="318" cy="200" r="19" fill="#e9e6df"/><text x="318" y="204">EN</text>
+        <circle cx="373" cy="200" r="19" fill="#e9e6df"/><text x="373" y="204">FR</text>
+        <circle cx="428" cy="200" r="19" fill="#f5b301"/><text x="428" y="204">ES</text>
+        <circle cx="483" cy="200" r="19" fill="#e9e6df"/><text x="483" y="204">中文</text>
+        <circle cx="345" cy="246" r="19" fill="#e9e6df"/><text x="345" y="250">TL</text>
+        <circle cx="400" cy="246" r="19" fill="#e9e6df"/><text x="400" y="250">ਪੰਜਾਬੀ</text>
+        <circle cx="455" cy="246" r="19" fill="#e9e6df"/><text x="455" y="250">عربي</text>
+      </g>
+      <rect x="292" y="285" width="100" height="72" rx="12" fill="#1f9d55" stroke="#14683a" stroke-width="2"/>
+      <rect x="408" y="285" width="100" height="72" rx="12" fill="#2f6fde" stroke="#1d4fa8" stroke-width="2"/>
+      <g stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round">
+        <circle cx="342" cy="300" r="4" fill="#fff"/><path d="M342 305 V320 M342 320 L336 332 M342 320 L349 332 M342 309 L334 315 M342 309 L350 313"/>
+        <circle cx="452" cy="300" r="4" fill="#fff"/><path d="M452 305 V320 M452 320 L446 332 M452 320 L458 332 M452 309 L463 313 M464 311 V334"/>
+      </g>
+      <text x="342" y="348" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">STANDARD</text>
+      <text x="458" y="348" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">EXTRA TIME</text>
+      <g fill="#1d2430"><circle cx="315" cy="385" r="3"/><circle cx="327" cy="385" r="3"/><circle cx="339" cy="385" r="3"/><circle cx="315" cy="397" r="3"/><circle cx="327" cy="397" r="3"/><circle cx="339" cy="397" r="3"/><circle cx="315" cy="409" r="3"/><circle cx="327" cy="409" r="3"/><circle cx="339" cy="409" r="3"/></g>
+      <path d="M400 420 V385 M388 397 L400 383 L412 397" stroke="#e9e6df" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      <g fill="#e9e6df"><circle cx="455" cy="392" r="2.5"/><circle cx="455" cy="402" r="2.5"/><circle cx="463" cy="392" r="2.5"/><circle cx="472" cy="402" r="2.5"/><circle cx="480" cy="392" r="2.5"/><circle cx="480" cy="402" r="2.5"/><circle cx="488" cy="412" r="2.5"/></g>
+      <g font-size="13" fill="#1d2430">
+        <text x="24" y="125" font-weight="700">Screen</text><text x="24" y="141" font-size="12" fill="#5f6b7a">instructions in the chosen language</text>
+        <line x1="230" y1="130" x2="293" y2="130" stroke="#1d2430"/>
+        <text x="24" y="220" font-weight="700">7 language buttons</text><text x="24" y="236" font-size="12" fill="#5f6b7a">common languages in Calgary</text>
+        <line x1="190" y1="224" x2="297" y2="224" stroke="#1d2430"/>
+        <text x="24" y="315" font-weight="700" fill="#1f9d55">Standard crossing</text><text x="24" y="331" font-size="12" fill="#5f6b7a">plans for 1.2 m/s: 15 ÷ 1.2 = 12.5 s</text>
+        <line x1="222" y1="320" x2="290" y2="320" stroke="#1d2430"/>
+        <text x="24" y="398" font-weight="700">Speaker</text><text x="24" y="414" font-size="12" fill="#5f6b7a">reads the instructions out loud</text>
+        <line x1="200" y1="398" x2="308" y2="397" stroke="#1d2430"/>
+        <text x="560" y="315" font-weight="700" fill="#2f6fde">Extra time</text><text x="560" y="331" font-size="12" fill="#5f6b7a">plans for 0.8 m/s: 15 ÷ 0.8 = 18.75 s</text><text x="560" y="347" font-size="12" fill="#5f6b7a">that's 50% more time</text>
+        <line x1="556" y1="320" x2="510" y2="320" stroke="#1d2430"/>
+        <text x="560" y="398" font-weight="700">Raised arrow + braille</text><text x="560" y="414" font-size="12" fill="#5f6b7a">for people who are blind</text>
+        <line x1="556" y1="400" x2="494" y2="400" stroke="#1d2430"/>
+      </g>
+    </svg>
+    <div class="card notes">
+      <h4 class="t">What happens</h4>
+      <ul><li>Build a tough, weatherproof panel with language buttons, two crossing-time buttons, a screen, a speaker, and tactile features.</li></ul>
+      <h4>Materials</h4>
+      <ul><li>Vandal-proof aluminum housing, large push buttons, small outdoor LCD screen, weatherproof speaker, raised tactile arrow, braille plate</li></ul>
+      <h4 class="m">Math</h4>
+      <ul><li>Time = distance ÷ speed: 12.5 s vs 18.75 s</li><li>Percent change: 18.75 ÷ 12.5 = 1.5, so 50% more time</li></ul>
+      <h4 class="s">Science</h4>
+      <ul><li>Sound waves: the speaker gets louder when traffic is noisy</li><li>Designing for accessibility (vision, mobility, language)</li></ul>
+    </div>
+  </div>
+
+  <!-- Stage 6 -->
+  <div class="stage">
+    <svg id="stage6" viewBox="0 0 800 470" xmlns="http://www.w3.org/2000/svg" font-family="system-ui,Segoe UI,Roboto,sans-serif">
+      <defs><marker id="ar6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#1d2430"/></marker></defs>
+      <text x="24" y="34" font-size="22" font-weight="700" fill="#1d2430">Stage 6: Program the logic</text>
+      <text x="24" y="56" font-size="13" fill="#5f6b7a">Flowchart of the code that runs on the microcontroller</text>
+      <g font-size="12.5" fill="#1d2430" text-anchor="middle">
+        <rect x="24" y="80" width="160" height="58" rx="29" fill="#1d2430"/><text x="104" y="105" fill="#fff" font-weight="700">Button pressed</text><text x="104" y="122" fill="#cfd6e0">(or mat senses someone)</text>
+        <rect x="214" y="80" width="170" height="58" rx="8" fill="#f3f1ec" stroke="#8a8578"/><text x="299" y="105" font-weight="700">Read choices</text><text x="299" y="122">language + crossing time</text>
+        <rect x="414" y="80" width="170" height="58" rx="8" fill="#fff8db" stroke="#f5b301"/><text x="499" y="105" font-weight="700">Stop the cars</text><text x="499" y="122">yellow 3 s, then red</text>
+        <rect x="614" y="80" width="170" height="58" rx="8" fill="#e8f6ee" stroke="#1f9d55"/><text x="699" y="105" font-weight="700">Start WALK</text><text x="699" y="122">time = 15 ÷ speed + 2 s</text>
+        <rect x="614" y="186" width="170" height="74" rx="8" fill="#e6efff" stroke="#2f6fde"/><text x="699" y="206" font-weight="700">Footstep tiles</text><text x="699" y="222">pressed tile = position</text><text x="699" y="238">needed = distance left</text><text x="699" y="254">÷ walking speed</text>
+        <polygon points="475,178 565,223 475,268 385,223" fill="#fff" stroke="#1d2430" stroke-width="1.5"/><text x="475" y="219" font-weight="700">needed &gt;</text><text x="475" y="235" font-weight="700">time left?</text>
+        <rect x="390" y="320" width="170" height="58" rx="8" fill="#fff8db" stroke="#f5b301"/><text x="475" y="345" font-weight="700">Add extra time</text><text x="475" y="362">needed − time left + 2 s</text>
+        <polygon points="250,178 340,223 250,268 160,223" fill="#fff" stroke="#1d2430" stroke-width="1.5"/><text x="250" y="219" font-weight="700">Reached the</text><text x="250" y="235" font-weight="700">other side?</text>
+        <rect x="190" y="320" width="120" height="50" rx="8" fill="#f3f1ec" stroke="#8a8578"/><text x="250" y="342" font-weight="700">Keep counting</text><text x="250" y="358">down</text>
+        <rect x="16" y="194" width="124" height="58" rx="29" fill="#1d2430"/><text x="78" y="219" fill="#fff" font-weight="700">Cars go again</text><text x="78" y="236" fill="#cfd6e0">(early if done early)</text>
+      </g>
+      <g stroke="#1d2430" stroke-width="1.8" fill="none">
+        <path d="M184 109 H212" marker-end="url(#ar6)"/>
+        <path d="M384 109 H412" marker-end="url(#ar6)"/>
+        <path d="M584 109 H612" marker-end="url(#ar6)"/>
+        <path d="M699 138 V184" marker-end="url(#ar6)"/>
+        <path d="M614 223 H567" marker-end="url(#ar6)"/>
+        <path d="M475 268 V318" marker-end="url(#ar6)"/>
+        <path d="M560 349 H699 V262" marker-end="url(#ar6)"/>
+        <path d="M385 223 H342" marker-end="url(#ar6)"/>
+        <path d="M160 223 H142" marker-end="url(#ar6)"/>
+        <path d="M250 268 V318" marker-end="url(#ar6)"/>
+        <path d="M250 370 V420 H792 V223 H786" marker-end="url(#ar6)"/>
+      </g>
+      <g font-size="12" font-weight="700">
+        <text x="485" y="292" fill="#b07d00">YES</text>
+        <text x="355" y="214" fill="#1f9d55">NO</text>
+        <text x="146" y="214" fill="#1f9d55">YES</text>
+        <text x="260" y="292" fill="#d64545">NO</text>
+      </g>
+      <text x="530" y="412" text-anchor="middle" font-size="12" fill="#5f6b7a">loop: repeats 10 times a second until the walker is across</text>
+      <rect x="24" y="434" width="752" height="30" rx="8" fill="#f4f2ee"/>
+      <text x="36" y="454" font-size="12.5" fill="#1d2430">If the same tile stays pressed with no new step, the walker has stopped, so the countdown pauses until they move again.</text>
+    </svg>
+    <div class="card notes">
+      <h4 class="t">What happens</h4>
+      <ul><li>Write the program that reads the buttons and sensors, stops traffic, and keeps checking whether the walker has enough time.</li></ul>
+      <h4>Materials</h4>
+      <ul><li>Microcontroller (for example an Arduino or Raspberry Pi), traffic signal controller connection, code</li></ul>
+      <h4 class="m">Math</h4>
+      <ul><li>Inequalities: is time needed &gt; time left?</li><li>Time = distance ÷ speed, recalculated 10 times a second</li></ul>
+      <h4 class="s">Science</h4>
+      <ul><li>Computer science: algorithms, loops and if/then decisions</li></ul>
+    </div>
+  </div>
+
+  <!-- Stage 7 -->
+  <div class="stage">
+    <div class="card" style="padding:22px">
+      <h2 style="margin:0 0 6px;font-size:22px">Stage 7: Test it</h2>
+      <p style="margin:0 0 12px;color:var(--muted)">Before building for real, the system is tested in the <a href="#simulation">Simulation</a>. Tests to run:</p>
+      <ul style="margin:0;padding-left:18px;line-height:1.7">
+        <li>A slow walker presses Standard. Does the system add time?</li>
+        <li>A walker stops in the middle. Does the countdown hold?</li>
+        <li>Night mode: are the walker and crosswalk easy to see?</li>
+        <li>Snow: does it plan for slower walking and turn the LEDs up?</li>
+        <li>Each language: does the message change and get spoken?</li>
+        <li>Turn parts off one at a time (or all off for a normal crosswalk) to see what each part adds.</li>
+      </ul>
+    </div>
+    <div class="card notes">
+      <h4 class="t">What happens</h4>
+      <ul><li>Test with a model, fix problems, then pilot one real crosswalk before building more.</li></ul>
+      <h4 class="m">Math</h4>
+      <ul><li>Compare results: crossings completed, how often time was added, how often the signal ran out mid-crossing</li></ul>
+      <h4 class="s">Science</h4>
+      <ul><li>Fair testing: change one condition at a time</li></ul>
+    </div>
+  </div>
+</section>
+</main>
+
+<script>
+/* ---------------- tabs ---------------- */
+function route(){
+  const h = location.hash.replace('#','') || 'simulation';
+  const v = (h==='build-stages') ? 'build-stages' : 'simulation';
+  document.querySelectorAll('.view').forEach(e=>e.classList.toggle('on', e.id==='view-'+v));
+  document.querySelectorAll('nav a').forEach(a=>a.classList.toggle('on', a.id==='tab-'+v));
+}
+window.addEventListener('hashchange', route); route();
+
+/* ---------------- languages ---------------- */
+const LANGS = {
+  en:{name:'English', code:'en-CA', dir:'ltr', m:{
+    ready:'Press the button to cross.', wait:'Wait. Traffic is stopping.', walk:'Walk. Cross now.',
+    extended:'Extra time added. Keep going.', hold:'Take your time. Signal is held.', done:'You crossed safely.', timeup:'Signal ended. Finish crossing carefully.'}},
+  fr:{name:'Français', code:'fr-CA', dir:'ltr', m:{
+    ready:'Appuyez sur le bouton pour traverser.', wait:"Attendez. La circulation s'arrête.", walk:'Marchez. Traversez maintenant.',
+    extended:'Temps supplémentaire ajouté. Continuez.', hold:'Prenez votre temps. Le signal est maintenu.', done:'Vous avez traversé en sécurité.', timeup:'Le signal est terminé. Finissez de traverser prudemment.'}},
+  es:{name:'Español', code:'es-ES', dir:'ltr', m:{
+    ready:'Pulse el botón para cruzar.', wait:'Espere. El tráfico se está deteniendo.', walk:'Camine. Cruce ahora.',
+    extended:'Se añadió tiempo extra. Siga caminando.', hold:'Tómese su tiempo. La señal se mantiene.', done:'Ha cruzado con seguridad.', timeup:'La señal terminó. Termine de cruzar con cuidado.'}},
+  zh:{name:'中文', code:'zh-CN', dir:'ltr', m:{
+    ready:'请按按钮过马路。', wait:'请等待，车辆正在停下。', walk:'请通行，现在过马路。',
+    extended:'已增加额外时间，请继续前行。', hold:'请慢慢来，信号已保持。', done:'您已安全通过。', timeup:'信号已结束，请小心走完。'}},
+  tl:{name:'Tagalog', code:'fil-PH', dir:'ltr', m:{
+    ready:'Pindutin ang button para tumawid.', wait:'Maghintay. Humihinto na ang mga sasakyan.', walk:'Lakad. Tumawid na ngayon.',
+    extended:'May dagdag na oras. Magpatuloy lang.', hold:'Dahan-dahan lang. Naka-hold ang signal.', done:'Ligtas kang nakatawid.', timeup:'Tapos na ang signal. Tumawid nang maingat.'}},
+  pa:{name:'ਪੰਜਾਬੀ', code:'pa-IN', dir:'ltr', m:{
+    ready:'ਸੜਕ ਪਾਰ ਕਰਨ ਲਈ ਬਟਨ ਦਬਾਓ।', wait:'ਉਡੀਕ ਕਰੋ। ਗੱਡੀਆਂ ਰੁਕ ਰਹੀਆਂ ਹਨ।', walk:'ਚੱਲੋ। ਹੁਣ ਸੜਕ ਪਾਰ ਕਰੋ।',
+    extended:'ਵਾਧੂ ਸਮਾਂ ਦਿੱਤਾ ਗਿਆ ਹੈ। ਚੱਲਦੇ ਰਹੋ।', hold:'ਆਰਾਮ ਨਾਲ ਚੱਲੋ। ਸਿਗਨਲ ਰੋਕਿਆ ਹੋਇਆ ਹੈ।', done:'ਤੁਸੀਂ ਸੁਰੱਖਿਅਤ ਪਾਰ ਕਰ ਲਿਆ।', timeup:'ਸਿਗਨਲ ਖਤਮ ਹੋ ਗਿਆ। ਧਿਆਨ ਨਾਲ ਪਾਰ ਕਰੋ।'}},
+  ar:{name:'عربي', code:'ar', dir:'rtl', m:{
+    ready:'اضغط الزر لعبور الطريق.', wait:'انتظر. السيارات تتوقف.', walk:'امشِ. اعبر الآن.',
+    extended:'تمت إضافة وقت إضافي. واصل السير.', hold:'خذ وقتك. تم تثبيت الإشارة.', done:'لقد عبرت بأمان.', timeup:'انتهت الإشارة. أكمل العبور بحذر.'}}
+};
+
+/* ---------------- constants ---------------- */
+const W=900, H=520, PX=22;            // 22 px per metre
+const ROAD_M=15, roadTop=95, roadBot=roadTop+ROAD_M*PX, laneH=ROAD_M*PX/4;
+const cwL=406, cwR=494, cwC=(cwL+cwR)/2;
+const stopRight = cwL-2*PX, stopLeft = cwR+2*PX;   // stop lines
+const CAR_L=4.6*PX, CAR_W=1.9*PX, VMAX=9*PX, ACC=2.5*PX, BRK=6*PX;
+const CAR_COLORS=['#d64545','#2f6fde','#e8e8e8','#1f9d55','#8a8f98','#f2a33a','#6b4bd6','#222831'];
+
+const S = {
+  lang:'en', mode:'standard', night:false, snow:false, speak:false,
+  phase:'idle', carLight:'green', phaseT:0, minGreen:2,
+  ped:null, given:0, timeLeft:0, ext:0, extFlash:0, holding:false, design:1.2,
+  battery:78, crossings:0, extensions:0, unsafe:0, warnT:0, msgKey:'ready', lastNeed:null
+};
+const F = {sensors:true, path:true, edge:true, adaptive:true, langs:true, extra:true, solar:true};
+const PARTS = [
+  ['sensors','Footstep sensor tiles','know where the walker is'],
+  ['path','Light-up path','follows the walker (needs sensors)'],
+  ['edge','Edge LEDs + driver beacons','flash to warn drivers'],
+  ['adaptive','Adaptive timing','adds time if needed (needs sensors)'],
+  ['langs','Language buttons','off = English only'],
+  ['extra','Extra time button','off = one fixed crossing time'],
+  ['solar','Solar power','off = runs on city power']
+];
+const TILE=0.6, NTILES=Math.round(15/TILE);
+const G = {active:false, t:0, acc:0, pts:[], old:[], given:null, end:null, arr:null, speed:null, done:null, hover:null, label:''};
+const sensed=d=>Math.min(15, Math.floor(Math.max(d,0)/TILE)*TILE+TILE/2);
+let cars=[], spawnT=[0.5,1.8,1.0,2.6], snow=[];
+for(let i=0;i<140;i++) snow.push({x:Math.random()*W,y:Math.random()*H,v:20+Math.random()*40,r:1+Math.random()*2});
+
+/* ---------------- UI wiring ---------------- */
+const $=id=>document.getElementById(id);
+const langBox=$('langs');
+Object.entries(LANGS).forEach(([k,L])=>{
+  const b=document.createElement('button'); b.textContent=L.name; b.dataset.lang=k;
+  if(k===S.lang) b.classList.add('on');
+  b.onclick=()=>{S.lang=k; langBox.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b)); setMsg(S.msgKey,true);};
+  langBox.appendChild(b);
+});
+document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{
+  if(S.phase==='walk') return;
+  S.mode=b.dataset.mode; document.querySelectorAll('[data-mode]').forEach(x=>x.classList.toggle('on',x===b));
+});
+$('press').onclick=()=>{
+  if(S.phase!=='idle' || S.ped) return;
+  S.ped={d:-1.0, paused:0, alpha:1};
+  S.phase='waiting'; S.phaseT=0; setMsg('wait');
+};
+$('speed').oninput=e=>{$('speedTxt').textContent=(+e.target.value).toFixed(1)};
+$('stopBtn').onclick=()=>{ if(S.ped && S.ped.d>0 && S.ped.d<ROAD_M) S.ped.paused=3; };
+$('nightBtn').onclick=e=>{S.night=!S.night; e.target.classList.toggle('on',S.night)};
+$('snowBtn').onclick=e=>{S.snow=!S.snow; e.target.classList.toggle('on',S.snow)};
+function renderToggles(){
+  const box=$('toggles'); box.innerHTML='';
+  PARTS.forEach(([k,label,sub])=>{
+    const needs = (k==='path'||k==='adaptive') && !F.sensors;
+    const row=document.createElement('div'); row.className='tg'+(needs&&F[k]?' dim':'');
+    const extra = needs && F[k] ? (k==='path'?' (no sensors: lights the whole crosswalk)':' (no effect without sensors)') : '';
+    row.innerHTML=`<span>${label}<small>${sub}${extra}</small></span>`;
+    const b=document.createElement('button'); b.className='sw'+(F[k]?' on':''); b.setAttribute('aria-label',label);
+    b.onclick=()=>{F[k]=!F[k]; applyToggles();};
+    row.appendChild(b); box.appendChild(row);
+  });
+}
+function applyToggles(){
+  if(!F.langs && S.lang!=='en'){S.lang='en'; langBox.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x.dataset.lang==='en')); setMsg(S.msgKey,true);}
+  langBox.querySelectorAll('button').forEach(x=>x.disabled=!F.langs && x.dataset.lang!=='en');
+  if(!F.extra && S.mode==='extra' && S.phase!=='walk'){S.mode='standard'; document.querySelectorAll('[data-mode]').forEach(x=>x.classList.toggle('on',x.dataset.mode==='standard'));}
+  document.querySelector('[data-mode=extra]').disabled=!F.extra;
+  renderToggles();
+}
+$('allOn').onclick=()=>{Object.keys(F).forEach(k=>F[k]=true); applyToggles();};
+$('allOff').onclick=()=>{Object.keys(F).forEach(k=>F[k]=false); applyToggles();};
+$('speakBtn').onclick=e=>{S.speak=!S.speak; e.target.classList.toggle('on',S.speak); if(S.speak) say(S.msgKey);};
+
+function setMsg(key, force){
+  if(key===S.msgKey && !force) return;
+  S.msgKey=key;
+  const L=LANGS[S.lang];
+  const m=$('msg'); m.textContent=L.m[key]; m.dir=L.dir;
+  $('msgEn').textContent = S.lang==='en' ? '' : LANGS.en.m[key];
+  say(key);
+}
+function say(key){
+  if(!S.speak) return;
+  try{
+    const L=LANGS[S.lang]; speechSynthesis.cancel();
+    const u=new SpeechSynthesisUtterance(L.m[key]); u.lang=L.code; u.rate=0.95; speechSynthesis.speak(u);
+  }catch(e){}
+}
+setMsg('ready',true);
+applyToggles();
+
+/* ---------------- simulation ---------------- */
+const realSpeed=()=> (+$('speed').value) * (S.snow?0.8:1);
+
+function startWalk(){
+  S.design = (S.mode==='extra'?0.8:1.2) * (S.snow?0.8:1);
+  S.given = ROAD_M / S.design + 2; S.timeLeft=S.given; S.ext=0;
+  S.phase='walk'; S.phaseT=0; setMsg('walk');
+  if(G.pts.length>1){ G.old.unshift({pts:G.pts, label:G.label}); G.old=G.old.slice(0,2); }
+  G.active=true; G.t=0; G.acc=0; G.pts=[[0,Math.max(0,S.ped?S.ped.d:0)]];
+  G.given=S.given; G.end=S.given; G.arr=null; G.done=null; G.speed=realSpeed();
+  G.label=G.speed.toFixed(1)+' m/s';
+}
+
+function update(dt){
+  S.phaseT+=dt;
+  if(S.carLight==='green') S.minGreen-=dt;
+
+  // phases
+  if(S.phase==='waiting'){
+    if(S.carLight==='green' && S.minGreen<=0){S.carLight='yellow'; S.phaseT=0;
+      for(const c of cars){const dir=c.lane<2?-1:1, front=c.x+dir*CAR_L/2, sx=dir>0?stopRight:stopLeft; const dist=(sx-front)*dir; c.committed = dist <= c.v*c.v/(2*BRK);}}
+    else if(S.carLight==='yellow' && S.phaseT>3){S.carLight='red'; S.phaseT=0;}
+    else if(S.carLight==='red' && S.phaseT>1.5){startWalk();}
+  }
+  const p=S.ped;
+  if(S.warnT>0) S.warnT-=dt;
+  if(p){
+    if(p.paused>0) p.paused-=dt;
+    if(S.phase!=='waiting'){ const v = p.paused>0 && !p.crossed ? 0 : realSpeed(); p.d+=v*dt; }
+    if(!p.crossed && p.d>=ROAD_M){
+      p.crossed=true; S.crossings++;
+      if(S.phase==='walk'){ setMsg('done'); if(F.sensors){S.phase='clearing'; S.phaseT=0;} }
+    }
+    if(S.phase==='walk'){
+      const smart = F.sensors && F.adaptive;
+      const moving = !(p.paused>0);
+      S.holding = smart && !moving && p.d>0 && !p.crossed;
+      if(!S.holding) S.timeLeft-=dt;
+      if(smart && !p.crossed){
+        const remaining=Math.max(0,ROAD_M-sensed(p.d)), v=realSpeed(), need=remaining/v;
+        S.lastNeed=need;
+        if(moving && remaining>0 && need > S.timeLeft-0.3){
+          const add=need+2-S.timeLeft; S.timeLeft+=add; S.ext+=add; S.extensions++; S.extFlash=2.5;
+        }
+      }
+      if(S.extFlash>0) S.extFlash-=dt;
+      if(!p.crossed){ if(S.holding) setMsg('hold'); else if(S.extFlash>0) setMsg('extended'); else setMsg('walk'); }
+      if(S.timeLeft<=0){
+        S.timeLeft=0;
+        if(!p.crossed){ S.unsafe++; S.warnT=5; setMsg('timeup'); }
+        S.phase='clearing'; S.phaseT=1.5;
+      }
+    }
+    if(G.active){
+      G.t+=dt; G.acc+=dt;
+      const d=Math.min(ROAD_M,Math.max(0,p.d));
+      if(G.acc>=0.1){G.pts.push([G.t,d]); G.acc=0;}
+      if(S.phase==='walk') G.end=G.t+S.timeLeft;
+      const v = p.paused>0 ? 0 : realSpeed();
+      G.speed=v;
+      G.arr = (F.sensors && v>0 && d<ROAD_M) ? G.t+(ROAD_M-d)/v : null;
+      if(p.d>=ROAD_M){G.pts.push([G.t,ROAD_M]); G.done=G.t; G.arr=null; G.active=false;}
+    }
+    if(S.phase==='clearing' && S.phaseT>1.5){S.phase='idle'; S.carLight='green'; S.minGreen=5; cars.forEach(c=>c.committed=false);}
+    if(p.d>ROAD_M+2.6){p.alpha-=dt*2; if(p.alpha<=0){S.ped=null; if(S.phase==='idle') setMsg('ready');}}
+  }
+
+  // cars
+  for(let l=0;l<4;l++){
+    spawnT[l]-=dt;
+    if(spawnT[l]<=0){
+      const dir=l<2?-1:1, x=dir>0?-CAR_L:W+CAR_L;
+      const blocked=cars.some(c=>c.lane===l && Math.abs(c.x-x)<CAR_L*2.2);
+      if(!blocked) cars.push({lane:l,x,v:VMAX*0.8,color:CAR_COLORS[Math.floor(Math.random()*CAR_COLORS.length)]});
+      spawnT[l]=1.6+Math.random()*3.2;
+    }
+  }
+  const pedOnRoad = S.ped && S.ped.d>-0.2 && S.ped.d<ROAD_M+0.2;
+  for(const c of cars){
+    const dir=c.lane<2?-1:1, front=c.x+dir*CAR_L/2;
+    let obs=Infinity;
+    for(const o of cars){ if(o===c||o.lane!==c.lane) continue;
+      const gap=(o.x-c.x)*dir-CAR_L; if(gap>-CAR_L*0.5 && (o.x-c.x)*dir>0) obs=Math.min(obs,gap-1.5*PX); }
+    { const sx=dir>0?stopRight:stopLeft, dist=(sx-front)*dir;
+      const mustStop=(S.carLight!=='green' && !c.committed && dist>-CAR_L) || (S.carLight==='green' && pedOnRoad && dist>-2);
+      if(mustStop) obs=Math.min(obs,Math.max(0,dist)); }
+    const allowed=Math.sqrt(2*BRK*Math.max(0,obs));
+    const target=Math.min(VMAX,allowed);
+    c.v = c.v<target ? Math.min(target,c.v+ACC*dt) : target;
+    c.x+=dir*c.v*dt;
+  }
+  cars=cars.filter(c=>c.x>-CAR_L*2 && c.x<W+CAR_L*2);
+
+  // battery
+  const active = S.phase==='walk'||S.phase==='waiting'||S.phase==='clearing';
+  if(F.solar){
+    const solarW = S.night?0:(S.snow?95:240);
+    const useW = 8 + (active?(S.night||S.snow?55:40):0);
+    S.battery=Math.max(0,Math.min(100,S.battery+(solarW-useW)*dt*0.004));
+    S.solarW=solarW;
+  } else S.solarW=null;
+
+  for(const f of snow){f.y+=f.v*dt; f.x+=Math.sin(f.y/30)*10*dt; if(f.y>H){f.y=-5;f.x=Math.random()*W;}}
+}
+
+/* ---------------- drawing ---------------- */
+const cv=$('c'), ctx=cv.getContext('2d');
+function fitCanvas(){const r=window.devicePixelRatio||1; cv.width=W*r; cv.height=H*r; ctx.setTransform(r,0,0,r,0,0);}
+fitCanvas();
+
+function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+
+function ledLevel(){ if(S.snow) return 1; return S.night?1:0.75; }
+
+function draw(t){
+  const N=S.night;
+  // ground
+  ctx.fillStyle=N?'#2a2c30':'#d5d0c5'; ctx.fillRect(0,0,W,roadTop); ctx.fillRect(0,roadBot,W,H-roadBot);
+  ctx.fillStyle=N?'#3a3c40':'#bdb7aa'; ctx.fillRect(0,roadTop-6,W,6); ctx.fillRect(0,roadBot,W,6);
+  ctx.fillStyle=N?'#1b1e23':'#444a54'; ctx.fillRect(0,roadTop,W,roadBot-roadTop);
+  if(S.snow){ctx.fillStyle='rgba(255,255,255,0.10)';ctx.fillRect(0,roadTop,W,roadBot-roadTop);ctx.fillStyle='rgba(255,255,255,0.45)';ctx.fillRect(0,0,W,roadTop-6);ctx.fillRect(0,roadBot+6,W,H-roadBot);}
+
+  // lane markings
+  ctx.strokeStyle=N?'rgba(255,255,255,.35)':'rgba(255,255,255,.85)'; ctx.lineWidth=2; ctx.setLineDash([22,18]);
+  [roadTop+laneH, roadTop+3*laneH].forEach(y=>{ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(stopRight-6,y);ctx.moveTo(stopLeft+6,y);ctx.lineTo(W,y);ctx.stroke();});
+  ctx.setLineDash([]);
+  ctx.strokeStyle=N?'rgba(245,196,0,.45)':'#f5c400';
+  [roadTop+2*laneH-3, roadTop+2*laneH+3].forEach(y=>{ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(cwL-4,y);ctx.moveTo(cwR+4,y);ctx.lineTo(W,y);ctx.stroke();});
+  // stop lines
+  ctx.fillStyle=N?'rgba(255,255,255,.4)':'#fff';
+  ctx.fillRect(stopRight-3, roadTop+2*laneH, 6, 2*laneH);
+  ctx.fillRect(stopLeft-3, roadTop, 6, 2*laneH);
+
+  // crosswalk bars (paint)
+  const bars=[];
+  for(let i=0;;i++){const s=0.3+i*1.2; if(s+0.6>ROAD_M) break; bars.push(s);}
+  bars.forEach(s=>{ const y=roadBot-(s+0.6)*PX;
+    ctx.fillStyle=N?'rgba(255,255,255,.16)':(S.snow?'rgba(255,255,255,.55)':'rgba(255,255,255,.9)'); ctx.fillRect(cwL+5,y,cwR-cwL-10,0.6*PX);});
+
+  // footstep tile grid
+  if(F.sensors){ctx.strokeStyle=N?'rgba(120,160,255,.18)':'rgba(255,255,255,.18)'; ctx.lineWidth=1;
+    for(let i=1;i<NTILES;i++){const y=roadBot-i*TILE*PX; ctx.beginPath(); ctx.moveTo(cwL+2,y); ctx.lineTo(cwR-2,y); ctx.stroke();}}
+
+  // cars
+  for(const c of cars){
+    const y=roadTop+(c.lane+0.5)*laneH, dir=c.lane<2?-1:1;
+    if(N){ // headlights
+      const fx=c.x+dir*CAR_L/2; const g=ctx.createLinearGradient(fx,0,fx+dir*150,0);
+      g.addColorStop(0,'rgba(255,240,190,.35)'); g.addColorStop(1,'rgba(255,240,190,0)');
+      ctx.fillStyle=g; ctx.beginPath(); ctx.moveTo(fx,y-CAR_W/2+4); ctx.lineTo(fx+dir*150,y-CAR_W); ctx.lineTo(fx+dir*150,y+CAR_W); ctx.lineTo(fx,y+CAR_W/2-4); ctx.fill();
+    }
+    ctx.save(); ctx.translate(c.x,y);
+    ctx.fillStyle='rgba(0,0,0,.25)'; rr(-CAR_L/2+2,-CAR_W/2+3,CAR_L,CAR_W,8); ctx.fill();
+    ctx.fillStyle=N?shade(c.color,0.55):c.color; rr(-CAR_L/2,-CAR_W/2,CAR_L,CAR_W,8); ctx.fill();
+    ctx.fillStyle=N?'#20262e':'#9fc1e0';
+    const wx=dir>0?CAR_L*0.12:-CAR_L*0.12-CAR_L*0.18; ctx.fillRect(wx,-CAR_W/2+5,CAR_L*0.18,CAR_W-10);
+    const rx=dir>0?-CAR_L*0.36:CAR_L*0.36-CAR_L*0.1; ctx.fillRect(rx,-CAR_W/2+6,CAR_L*0.1,CAR_W-12);
+    if(N){ctx.fillStyle='#ff4d4d'; const bx=-dir*CAR_L/2; ctx.fillRect(bx-(dir>0?0:3),-CAR_W/2+3,3,6); ctx.fillRect(bx-(dir>0?0:3),CAR_W/2-9,3,6);}
+    ctx.restore();
+  }
+
+  // night overlay
+  if(N){ctx.fillStyle='rgba(4,8,20,.35)'; ctx.fillRect(0,0,W,H);}
+
+  // LEDs
+  const lvl=ledLevel(), p=S.ped;
+  const walking=S.phase==='walk'||S.phase==='clearing';
+  const blink=(Math.floor(t/400)%2)===0;
+  bars.forEach(s=>{
+    let a=0;
+    if(walking && F.path){
+      if(F.sensors){
+        a=0.22;
+        if(p && !p.crossed && p.d>=0){const dd=(s+0.3)-sensed(p.d); if(dd>-1.6 && dd<3.2){ a = dd<0 ? 1-(-dd/1.6)*0.6 : 1-(dd/3.2)*0.7; }}
+      } else a=0.6;
+    }
+    if(a>0){
+      a*=lvl; const y=roadBot-(s+0.6)*PX;
+      ctx.save(); ctx.shadowColor='rgba(255,215,90,.95)'; ctx.shadowBlur=24*a;
+      ctx.fillStyle=`rgba(255,226,122,${0.25+0.75*a})`; ctx.fillRect(cwL+5,y,cwR-cwL-10,0.6*PX); ctx.restore();
+    }
+  });
+  // edge LEDs
+  const edgeOn = F.edge && (walking || (S.phase==='waiting' && blink));
+  for(let m=0;m<=ROAD_M;m+=0.5){
+    const y=roadBot-m*PX;
+    [cwL,cwR].forEach(x=>{
+      ctx.beginPath(); ctx.arc(x,y,2.6,0,7);
+      if(edgeOn){ctx.save();ctx.shadowColor='#f5b301';ctx.shadowBlur=10*lvl;ctx.fillStyle=`rgba(245,179,1,${0.5+0.5*lvl})`;ctx.fill();ctx.restore();}
+      else {ctx.fillStyle=N?'#3b3f46':'#6b717b'; ctx.fill();}
+    });
+  }
+
+  // car signal heads
+  drawCarSignal(stopRight-14, roadBot+22);
+  drawCarSignal(stopLeft+14, roadTop-22);
+
+  // poles + beacons + solar
+  drawPole(cwL-30, roadBot+40, blink);
+  drawPole(cwR+30, roadTop-40, blink);
+
+  // pressure mats
+  const matOn = F.sensors && p && S.phase==='waiting';
+  ctx.strokeStyle='#2f6fde'; ctx.setLineDash([5,4]); ctx.lineWidth=1.5;
+  ctx.fillStyle=matOn?'rgba(47,111,222,.35)':'rgba(47,111,222,.10)';
+  ctx.fillRect(cwL,roadBot+8,cwR-cwL,40); ctx.strokeRect(cwL,roadBot+8,cwR-cwL,40);
+  ctx.fillStyle='rgba(47,111,222,.10)'; ctx.fillRect(cwL,roadTop-48,cwR-cwL,40); ctx.strokeRect(cwL,roadTop-48,cwR-cwL,40);
+  ctx.setLineDash([]);
+
+  // pedestrian + sensor line
+  if(p){
+    const py=roadBot-p.d*PX, px=cwC;
+    if(F.sensors && p.d>=0 && p.d<ROAD_M){
+      const idx=Math.floor(p.d/TILE), ty=roadBot-(idx+1)*TILE*PX;
+      ctx.fillStyle='rgba(47,111,222,.35)'; ctx.fillRect(cwL+2,ty,cwR-cwL-4,TILE*PX);
+      ctx.strokeStyle='#4d8bff'; ctx.lineWidth=2; ctx.strokeRect(cwL+2,ty,cwR-cwL-4,TILE*PX);
+    }
+    ctx.save(); ctx.globalAlpha=Math.max(0,p.alpha);
+    if(N){const g=ctx.createRadialGradient(px,py,2,px,py,40);g.addColorStop(0,'rgba(255,230,150,.45)');g.addColorStop(1,'rgba(255,230,150,0)');ctx.fillStyle=g;ctx.beginPath();ctx.arc(px,py,40,0,7);ctx.fill();}
+    ctx.fillStyle='#e85d2a'; ctx.beginPath(); ctx.ellipse(px,py,11,8,0,0,7); ctx.fill();
+    ctx.fillStyle='#3a2a1e'; ctx.beginPath(); ctx.arc(px,py-1,5.5,0,7); ctx.fill();
+    if(p.paused>0){ctx.fillStyle='#fff';ctx.font='bold 12px system-ui';ctx.textAlign='left';ctx.fillText('stopped',px+20,py+4);}
+    ctx.restore();
+  }
+
+  // 15 m dimension
+  ctx.strokeStyle=N?'rgba(255,255,255,.5)':'rgba(255,255,255,.8)'; ctx.lineWidth=1.2;
+  const dx=cwL-54; ctx.beginPath(); ctx.moveTo(dx,roadTop+4); ctx.lineTo(dx,roadBot-4); ctx.stroke();
+  [[roadTop+4,1],[roadBot-4,-1]].forEach(([y,s])=>{ctx.beginPath();ctx.moveTo(dx-5,y+8*s);ctx.lineTo(dx,y);ctx.lineTo(dx+5,y+8*s);ctx.stroke();});
+  ctx.save(); ctx.translate(dx-8,(roadTop+roadBot)/2); ctx.rotate(-Math.PI/2); ctx.fillStyle=N?'rgba(255,255,255,.7)':'#fff'; ctx.font='bold 13px system-ui'; ctx.textAlign='center'; ctx.fillText('15 m',0,0); ctx.restore();
+
+  // snow
+  if(S.snow){ctx.fillStyle='rgba(255,255,255,.85)'; for(const f of snow){ctx.beginPath();ctx.arc(f.x,f.y,f.r,0,7);ctx.fill();}}
+
+  // on-canvas status
+  const warn=S.warnT>0;
+  let label={idle:'Traffic flowing',waiting:'Stopping traffic for pedestrian',walk:S.holding?'Walk (holding: pedestrian stopped)':'Walk phase',clearing:'Crossing complete'}[S.phase];
+  if(S.phase==='walk' && S.ped && S.ped.crossed) label='Walker is across, but no sensors: waiting for timer';
+  if(warn) label='Signal ran out with the walker still on the road!';
+  ctx.font='600 13px system-ui'; ctx.textAlign='left';
+  const tw=ctx.measureText(label).width+20;
+  ctx.fillStyle=warn?'rgba(200,40,40,.92)':'rgba(17,21,28,.78)'; rr(12,12,Math.max(250,tw),30,8); ctx.fill();
+  ctx.fillStyle='#fff'; ctx.fillText(label,22,32);
+}
+
+function drawCarSignal(x,y){
+  ctx.fillStyle='#111'; rr(x-9,y-24,18,48,5); ctx.fill();
+  [['red','#ff4040',-14],['yellow','#ffc400',0],['green','#2fd06a',14]].forEach(([k,c,o])=>{
+    ctx.beginPath(); ctx.arc(x,y+o,5,0,7);
+    if(S.carLight===k){ctx.save();ctx.shadowColor=c;ctx.shadowBlur=10;ctx.fillStyle=c;ctx.fill();ctx.restore();} else {ctx.fillStyle='#333';ctx.fill();}
+  });
+}
+function drawPole(x,y,blink){
+  ctx.save(); ctx.translate(x,y);
+  ctx.fillStyle='#2f6fde'; ctx.strokeStyle='#1d2430'; ctx.lineWidth=1;
+  ctx.fillRect(-16,-8,32,16); ctx.strokeRect(-16,-8,32,16);
+  ctx.strokeStyle='rgba(255,255,255,.5)'; ctx.beginPath(); ctx.moveTo(-5,-8); ctx.lineTo(-5,8); ctx.moveTo(6,-8); ctx.lineTo(6,8); ctx.moveTo(-16,0); ctx.lineTo(16,0); ctx.stroke();
+  ctx.fillStyle='#1d2430'; ctx.beginPath(); ctx.arc(0,0,4,0,7); ctx.fill();
+  const on=F.edge && (S.phase==='waiting'||S.phase==='walk') && blink;
+  ctx.beginPath(); ctx.arc(22,0,5,0,7);
+  if(on){ctx.shadowColor='#f5b301';ctx.shadowBlur=14;ctx.fillStyle='#ffc21a';} else ctx.fillStyle='#6b5a2a';
+  ctx.fill(); ctx.restore();
+}
+function shade(hex,f){const n=parseInt(hex.slice(1),16);const r=(n>>16)*f,g=((n>>8)&255)*f,b=(n&255)*f;return `rgb(${r|0},${g|0},${b|0})`;}
+
+/* ---------------- panel updates ---------------- */
+const walkSVG='<svg width="44" height="44" viewBox="0 0 44 44"><g stroke="#f4f4f4" stroke-width="4" stroke-linecap="round" fill="none"><circle cx="22" cy="7" r="4" fill="#f4f4f4"/><path d="M22 13 L20 26 M20 26 L14 40 M20 26 L27 33 L28 41 M21 16 L13 22 M21 16 L30 21"/></g></svg>';
+const handSVG='<svg width="44" height="44" viewBox="0 0 44 44"><path d="M13 24 V12 a2.5 2.5 0 0 1 5 0 V21 V8 a2.5 2.5 0 0 1 5 0 V21 V9 a2.5 2.5 0 0 1 5 0 V22 V13 a2.5 2.5 0 0 1 5 0 V28 c0 8-5 13-12 13 c-5 0-8-3-11-8 l-5-8 a2.5 2.5 0 0 1 4-3 z" fill="#ff7a1a"/></svg>';
+let lastIcon='';
+function panel(){
+  const walk=S.phase==='walk';
+  const icon=walk?'walk':'hand'; if(icon!==lastIcon){$('sigIcon').innerHTML=walk?walkSVG:handSVG; lastIcon=icon;}
+  $('count').textContent = walk ? Math.ceil(S.timeLeft) : '--';
+  $('count').style.color = walk ? (S.holding?'#7fb3ff':'#ffb347') : '#555';
+  $('press').disabled = S.phase!=='idle' || !!S.ped;
+  $('press').textContent = S.phase==='idle' && !S.ped ? 'Press to cross' : 'Crossing in progress';
+
+  const designNow=(S.mode==='extra'?0.8:1.2)*(S.snow?0.8:1);
+  const d = walk||S.phase==='clearing' ? S.design : designNow;
+  $('fDesign').textContent=(S.mode==='extra'?'extra time 0.8':'standard 1.2')+(S.snow?' × 0.8 snow':'');
+  $('vDesign').textContent=d.toFixed(2).replace(/0$/,'')+' m/s';
+  $('fGiven').textContent=`15.0 ÷ ${d.toFixed(2).replace(/0$/,'')} + 2 s to step off`;
+  $('vGiven').textContent=(15/d+2).toFixed(1)+' s';
+  const p=S.ped, dec=$('decision');
+  const onRoad = p && (walk||S.phase==='clearing'||S.phase==='idle') && p.d>=0 && !p.crossed;
+  if(p && F.sensors && onRoad){
+    const pos=sensed(p.d), idx=Math.floor(Math.max(p.d,0)/TILE)+1, left=ROAD_M-pos, v=realSpeed();
+    $('vPos').textContent=`${pos.toFixed(1)} m (tile ${idx} of ${NTILES})`;
+    $('vLeft').textContent=left.toFixed(1)+' m';
+    $('vSpeed').textContent=(p.paused>0?'0.0 (standing still)':v.toFixed(2))+' m/s';
+    $('fNeed').textContent=`${left.toFixed(1)} ÷ ${v.toFixed(2)}`;
+    $('vNeed').textContent=(left/v).toFixed(1)+' s';
+  } else {
+    ['vPos','vLeft','vSpeed','vNeed'].forEach(i=>$(i).textContent= (p && !F.sensors && onRoad) ? 'unknown' : '-');
+    $('fNeed').textContent='distance left ÷ speed';
+  }
+  $('vTimeLeft').textContent=walk?S.timeLeft.toFixed(1)+' s':'-';
+  $('vExt').textContent=S.ext.toFixed(1)+' s';
+  let cls='decision', txt='Press the button to start a crossing.';
+  if(S.warnT>0){cls='decision bad'; txt='The signal ran out while the walker was still on the road. Drivers got a green light and had to wait for them. This is the problem the smart crosswalk fixes.';}
+  else if(S.phase==='waiting'){txt = F.sensors ? 'Footstep mat at the curb senses someone waiting. Stopping traffic first (yellow, then red).' : 'Button pressed. Stopping traffic first (yellow, then red).';}
+  else if(walk && p && p.crossed){cls='decision ext'; txt='Walker is across, but with no sensors the system cannot tell, so cars wait for the full timer.';}
+  else if(S.phase==='clearing' && p && p.crossed){cls='decision ok'; txt='Across safely. The tiles sensed the last step, so traffic gets the green early instead of waiting for the timer.';}
+  else if(walk && !F.sensors){cls='decision'; txt='No footstep sensors: the system cannot see where the walker is, so it just runs a fixed timer.';}
+  else if(walk && !F.adaptive){cls='decision'; txt='Adaptive timing is off: the tiles know where the walker is, but the timer will not add time.';}
+  else if(walk && S.holding){cls='decision ext'; txt='The same tile has been pressed with no new step: the walker stopped. Countdown is held until they move again.';}
+  else if(walk && S.extFlash>0){cls='decision ext'; txt=`Time needed was more than time left, so the system added time (${S.ext.toFixed(1)} s extra so far).`;}
+  else if(walk && p && p.d<0){txt='Walker stepping off the curb.';}
+  else if(walk && p){const left=ROAD_M-sensed(p.d), v=realSpeed(); cls='decision ok'; txt=`Time needed (${(left/v).toFixed(1)} s) ≤ time left (${S.timeLeft.toFixed(1)} s). Enough time.`;}
+  dec.className=cls; dec.textContent=txt;
+  $('batTxt').textContent=Math.round(S.battery)+'%'; $('batBar').style.width=S.battery+'%';
+  $('batBar').style.background=S.battery<25?'#d64545':'#1f9d55';
+  $('solar').textContent= S.solarW===null ? 'Off (city power)' : S.solarW+' W'+(S.night?' (night)':S.snow?' (cloudy)':'');
+  $('lightS').textContent=S.night?'Dark: night mode':'Daytime';
+  $('weatherS').textContent=S.snow?'Snow: slower walking expected':'Clear';
+  const active=S.phase==='walk'||S.phase==='clearing'||S.phase==='waiting';
+  $('ledB').textContent=!(F.path||F.edge)?'Off (turned off)':active?Math.round(ledLevel()*100)+'%':'Off (standby)';
+  $('matS').textContent=!F.sensors?'Off':(S.ped && S.phase==='waiting')?'Someone waiting':'Empty';
+  $('trackS').textContent=!F.sensors?'Off':(onRoad && p.d<ROAD_M)?`Tile ${Math.floor(p.d/TILE)+1} of ${NTILES} pressed`:'Nobody on crosswalk';
+  $('statC').textContent=S.crossings; $('statE').textContent=S.extensions; $('statU').textContent=S.unsafe;
+}
+
+/* ---------------- distance-time graph ---------------- */
+const gc=$('g'), gx=gc.getContext('2d'), GW=900, GH=300, GM={l:58,r:24,t:18,b:44};
+(function(){const r=window.devicePixelRatio||1; gc.width=GW*r; gc.height=GH*r; gx.setTransform(r,0,0,r,0,0);})();
+gc.addEventListener('mousemove',e=>{const b=gc.getBoundingClientRect(); G.hover=(e.clientX-b.left)*(GW/b.width);});
+gc.addEventListener('mouseleave',()=>{G.hover=null;});
+function interp(pts,t){ if(!pts.length||t<pts[0][0]||t>pts[pts.length-1][0]) return null;
+  for(let i=1;i<pts.length;i++){ if(pts[i][0]>=t){const [t0,d0]=pts[i-1],[t1,d1]=pts[i]; return t1===t0?d1:d0+(d1-d0)*(t-t0)/(t1-t0);} } return null; }
+function drawGraph(){
+  const cur=G.pts, lastT=cur.length?cur[cur.length-1][0]:0;
+  let maxT=Math.max(20, lastT+2, (G.end||0)+2, (G.arr||0)+2, ...G.old.map(o=>o.pts[o.pts.length-1][0]+1));
+  maxT=Math.min(60,Math.ceil(maxT/5)*5);
+  const pw=GW-GM.l-GM.r, ph=GH-GM.t-GM.b;
+  const X=t=>GM.l+t/maxT*pw, Y=d=>GM.t+ph-d/15*ph;
+  gx.clearRect(0,0,GW,GH); gx.fillStyle='#fff'; gx.fillRect(0,0,GW,GH);
+  // grid
+  gx.font='12px system-ui'; gx.fillStyle='#5f6b7a'; gx.strokeStyle='#ece8e0'; gx.lineWidth=1;
+  gx.textAlign='right'; gx.textBaseline='middle';
+  for(let d=0;d<=15;d+=3){gx.beginPath();gx.moveTo(GM.l,Y(d));gx.lineTo(GW-GM.r,Y(d));gx.stroke();gx.fillText(d,GM.l-8,Y(d));}
+  gx.textAlign='center'; gx.textBaseline='top';
+  for(let t=0;t<=maxT;t+=5){gx.beginPath();gx.moveTo(X(t),GM.t);gx.lineTo(X(t),GM.t+ph);gx.stroke();gx.fillText(t,X(t),GM.t+ph+6);}
+  gx.strokeStyle='#1d2430'; gx.lineWidth=1.5; gx.beginPath(); gx.moveTo(GM.l,GM.t); gx.lineTo(GM.l,GM.t+ph); gx.lineTo(GW-GM.r,GM.t+ph); gx.stroke();
+  gx.fillStyle='#1d2430'; gx.font='600 12px system-ui'; gx.fillText('time (s)',GM.l+pw/2,GH-16);
+  gx.save(); gx.translate(16,GM.t+ph/2); gx.rotate(-Math.PI/2); gx.fillText('distance across (m)',0,0); gx.restore();
+  // finish line
+  gx.setLineDash([6,5]); gx.strokeStyle='#1f9d55'; gx.lineWidth=1.5;
+  gx.beginPath(); gx.moveTo(GM.l,Y(15)); gx.lineTo(GW-GM.r,Y(15)); gx.stroke(); gx.setLineDash([]);
+  gx.fillStyle='#1f9d55'; gx.textAlign='left'; gx.textBaseline='bottom'; gx.font='600 12px system-ui'; gx.fillText('other side (15 m)',GM.l+6,Y(15)-3);
+  // signal lines
+  if(G.given!=null){
+    if(G.end!=null && G.end-G.given>0.2){
+      gx.setLineDash([3,4]); gx.strokeStyle='#9aa6b5'; gx.beginPath(); gx.moveTo(X(G.given),GM.t); gx.lineTo(X(G.given),GM.t+ph); gx.stroke(); gx.setLineDash([]);
+      gx.fillStyle='#9aa6b5'; gx.textAlign='center'; gx.textBaseline='top'; gx.font='11px system-ui'; gx.fillText('first given '+G.given.toFixed(1)+' s',X(G.given),GM.t+ph-16);
+      gx.fillStyle='rgba(245,179,1,.15)'; gx.fillRect(X(G.given),GM.t,X(G.end)-X(G.given),ph);
+      gx.fillStyle='#b07d00'; gx.font='600 11px system-ui'; gx.fillText('time added',(X(G.given)+X(G.end))/2,GM.t+4);
+    }
+    gx.strokeStyle='#2f6fde'; gx.lineWidth=2; gx.beginPath(); gx.moveTo(X(G.end),GM.t); gx.lineTo(X(G.end),GM.t+ph); gx.stroke();
+    gx.fillStyle='#2f6fde'; gx.font='600 12px system-ui'; gx.textAlign='left'; gx.textBaseline='top';
+    const lx=X(G.end)+5>GW-GM.r-110?X(G.end)-115:X(G.end)+5; gx.fillText('signal ends '+G.end.toFixed(1)+' s',lx,GM.t+20);
+  }
+  // old traces
+  G.old.forEach((o,i)=>{ gx.strokeStyle=i===0?'rgba(29,36,48,.32)':'rgba(29,36,48,.18)'; gx.lineWidth=2; gx.beginPath();
+    o.pts.forEach(([t,d],k)=>k?gx.lineTo(X(t),Y(d)):gx.moveTo(X(t),Y(d))); gx.stroke();
+    const [et,ed]=o.pts[o.pts.length-1]; gx.fillStyle='rgba(29,36,48,.55)'; gx.font='11px system-ui'; gx.textAlign='left'; gx.textBaseline='middle'; gx.fillText(o.label,X(et)+6,Y(ed)+10+i*12); });
+  // current trace
+  if(cur.length>1){
+    gx.strokeStyle='#e85d2a'; gx.lineWidth=3; gx.lineJoin='round'; gx.beginPath();
+    cur.forEach(([t,d],k)=>k?gx.lineTo(X(t),Y(d)):gx.moveTo(X(t),Y(d))); gx.stroke();
+    const [ct,cd]=cur[cur.length-1];
+    if(G.arr!=null){
+      gx.setLineDash([7,6]); gx.strokeStyle='#e85d2a'; gx.lineWidth=2; gx.beginPath(); gx.moveTo(X(ct),Y(cd)); gx.lineTo(X(G.arr),Y(15)); gx.stroke(); gx.setLineDash([]);
+      gx.fillStyle='#e85d2a'; gx.beginPath(); gx.arc(X(G.arr),Y(15),5,0,7); gx.fill();
+      gx.font='600 12px system-ui'; gx.textAlign='center'; gx.textBaseline='bottom'; gx.fillText('predicted '+G.arr.toFixed(1)+' s',X(G.arr),Y(15)-8);
+    }
+    if(G.done!=null){ gx.fillStyle='#1f9d55'; gx.beginPath(); gx.arc(X(G.done),Y(15),5,0,7); gx.fill();
+      gx.font='600 12px system-ui'; gx.textAlign='center'; gx.textBaseline='bottom'; gx.fillText('arrived '+G.done.toFixed(1)+' s',X(G.done),Y(15)-8); }
+    gx.fillStyle='#e85d2a'; gx.beginPath(); gx.arc(X(ct),Y(cd),4.5,0,7); gx.fill();
+  }
+  // hover interpolation
+  let hov='-';
+  if(G.hover!=null && G.hover>=GM.l && G.hover<=GW-GM.r){
+    const t=(G.hover-GM.l)/pw*maxT; const src=cur.length>1?cur:(G.old[0]?G.old[0].pts:[]); const d=interp(src,t);
+    gx.strokeStyle='rgba(29,36,48,.45)'; gx.lineWidth=1; gx.setLineDash([2,3]); gx.beginPath(); gx.moveTo(X(t),GM.t); gx.lineTo(X(t),GM.t+ph); gx.stroke();
+    if(d!=null){ gx.beginPath(); gx.moveTo(GM.l,Y(d)); gx.lineTo(X(t),Y(d)); gx.stroke(); gx.setLineDash([]);
+      gx.fillStyle='#1d2430'; gx.beginPath(); gx.arc(X(t),Y(d),4,0,7); gx.fill(); hov=`at ${t.toFixed(1)} s: ${d.toFixed(1)} m`; }
+    gx.setLineDash([]);
+  }
+  $('gHover').textContent=hov;
+  $('gSlope').textContent = G.given==null ? '-' : (S.ped && S.ped.paused>0 && !S.ped.crossed ? '0 m/s (stopped)' : (G.speed||0).toFixed(2)+' m/s');
+  $('gArr').textContent = G.done!=null ? 'arrived at '+G.done.toFixed(1)+' s' : (G.arr!=null ? G.arr.toFixed(1)+' s' : (G.given==null?'-':(F.sensors?'waiting (stopped)':'unknown: no sensors')));
+  $('gEnd').textContent = G.end!=null ? G.end.toFixed(1)+' s' : '-';
+  let note='Press the button to start a crossing. Each crossing draws a line; the last two stay faded so you can compare a fast and a slow walker.';
+  if(G.given!=null){
+    if(G.done!=null) note=`Arrived at ${G.done.toFixed(1)} s. The steeper the line, the faster the walker. Try another speed to compare.`;
+    else if(!F.sensors) note='No footstep sensors: the system cannot see the line, so it cannot extrapolate. The signal just runs its fixed time.';
+    else if(S.ped && S.ped.paused>0) note='Flat line = slope 0 = the walker has stopped. The signal holds until they move again.';
+    else if(G.end-G.given>0.2) note='The dashed line (extrapolation) reached 15 m after the signal would end, so the system moved the signal end later.';
+    else note='The dashed line extends the walker\'s line to 15 m (extrapolation). If it lands before the blue line, they have enough time.';
+  }
+  $('gNote').textContent=note;
+}
+
+let last=performance.now(), acc=0;
+function loop(now){
+  let dt=Math.min(0.05,(now-last)/1000); last=now;
+  update(dt); draw(now); drawGraph(); acc+=dt; if(acc>0.1){panel(); acc=0;}
+  requestAnimationFrame(loop);
+}
+panel(); requestAnimationFrame(loop);
+</script>
+</body>
+</html>
